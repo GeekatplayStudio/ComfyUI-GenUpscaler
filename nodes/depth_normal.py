@@ -98,14 +98,16 @@ class GAPDepthNormalGenerator:
         return {
             "required": {
                 "image": ("IMAGE", {"tooltip": "Input image to generate 3D depth, normal, and curvature maps from."}),
-                "depth_model": (cls.DEPTH_MODELS, {"default": "Depth Anything v2 (Small - Fast & Sharp)",
-                                                   "tooltip": "Select SOTA AI monocular depth estimation model."}),
                 "normal_strength": ("FLOAT", {"default": 2.5, "min": 0.1, "max": 10.0, "step": 0.1,
                                               "tooltip": "Strength/scale of the surface normal detail."}),
                 "depth_smoothness": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 5.0, "step": 0.1,
                                                "tooltip": "Gaussian smoothing filter applied to depth before normal computation."}),
                 "invert_depth": ("BOOLEAN", {"default": False, "tooltip": "Invert depth map (Near=Black, Far=White vs Near=White, Far=Black)."}),
                 "invert_y_normal": ("BOOLEAN", {"default": False, "tooltip": "Invert Green channel (DirectX vs OpenGL normal map convention)."}),
+            },
+            "optional": {
+                "depth_model": (cls.DEPTH_MODELS, {"default": "Depth Anything v2 (Small - Fast & Sharp)",
+                                                   "tooltip": "Select SOTA AI monocular depth estimation model."}),
             }
         }
 
@@ -116,8 +118,11 @@ class GAPDepthNormalGenerator:
     DESCRIPTION = ("Extracts true AI monocular 3D Depth Maps (Depth Anything v2), Tangent-Space Surface Normal Maps, "
                    "and Surface Curvature Maps directly on GPU. by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com")
 
-    def generate(self, image, depth_model="Depth Anything v2 (Small - Fast & Sharp)",
-                 normal_strength=2.5, depth_smoothness=0.0, invert_depth=False, invert_y_normal=False):
+    def generate(self, image, normal_strength=2.5, depth_smoothness=0.0, invert_depth=False, invert_y_normal=False,
+                 depth_model="Depth Anything v2 (Small - Fast & Sharp)"):
+
+        if not isinstance(depth_model, str) or depth_model not in self.DEPTH_MODELS:
+            depth_model = "Depth Anything v2 (Small - Fast & Sharp)"
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         b, h, w, c = image.shape
