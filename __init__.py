@@ -6,18 +6,43 @@ https://www.geekatplay.com
 Content-aware generative upscaling for ComfyUI:
 extreme upscale -> tile -> generative detail refinement -> seamless blend.
 """
+import os
+import sys
 
-from .nodes.detail_control import GAPDetailControl
-from .nodes.tile_planner import GAPTilePlanner
-from .nodes.upscale_prompt import GAPUpscalePrompt
-from .nodes.color_match import GAPColorMatch
-from .nodes.tiled_refine import GAPTiledRefine
-from .nodes.compare_slider import GAPCompareSlider
-from .nodes.gap360_refine import GAP360TiledRefine, GAP360TilePlanner
-from .nodes.hdr_tonemap import GAPHDRTonemap
-from .nodes.depth_normal import GAPDepthNormalGenerator
-from .nodes.compare_360 import GAP360CompareViewer
-from .nodes.detail_daemon import GAPDetailDaemon
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+try:
+    from .nodes import (
+        GAPDetailControl,
+        GAPTilePlanner,
+        GAPUpscalePrompt,
+        GAPColorMatch,
+        GAPTiledRefine,
+        GAPCompareSlider,
+        GAP360TiledRefine,
+        GAP360TilePlanner,
+        GAPHDRTonemap,
+        GAPDepthNormalGenerator,
+        GAP360CompareViewer,
+        GAPDetailDaemon,
+    )
+except ImportError:
+    from nodes import (
+        GAPDetailControl,
+        GAPTilePlanner,
+        GAPUpscalePrompt,
+        GAPColorMatch,
+        GAPTiledRefine,
+        GAPCompareSlider,
+        GAP360TiledRefine,
+        GAP360TilePlanner,
+        GAPHDRTonemap,
+        GAPDepthNormalGenerator,
+        GAP360CompareViewer,
+        GAPDetailDaemon,
+    )
 
 NODE_CLASS_MAPPINGS = {
     "GAPDetailControl": GAPDetailControl,
