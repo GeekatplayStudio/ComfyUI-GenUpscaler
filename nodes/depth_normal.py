@@ -1,16 +1,48 @@
-"""GAP Depth, Surface Normal & Curvature Generator - fast GPU 3D detail extraction.
+"""GAP Depth, Surface Normal & Curvature Generator - AI Monocular Depth & 3D Surface Detail Extraction.
 
-Generates high-precision Depth Maps, Tangent-Space Surface Normal Maps (RGB),
-and Surface Curvature Maps (Laplacian) using GPU multi-scale gradient operators (Sobel/Scharr).
+Uses Depth Anything v2 (SOTA AI Monocular Depth Estimation) to generate true 3D Depth Maps,
+Tangent-Space Surface Normal Maps (RGB), and Surface Curvature Maps (Laplacian).
 
 by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com
 """
+import os
+import sys
+import numpy as np
 import torch
 import torch.nn.functional as F
+from PIL import Image
+
+try:
+    from transformers import AutoImageProcessor, AutoModelForDepthEstimation
+except ImportError:
+    AutoImageProcessor = None
+    AutoModelForDepthEstimation = None
+
+# Global Model Cache: { (model_id, device_str): (processor, model) }
+_DEPTH_MODEL_CACHE = {}
+
+
+def _get_depth_anything_model(model_id, device):
+    if AutoImageProcessor is None or AutoModelForDepthEstimation is None:
+        return None, None
+
+    cache_key = (model_id, str(device))
+    if cache_key in _DEPTH_MODEL_CACHE:
+        return _DEPTH_MODEL_CACHE[cache_key]
+
+    try:
+        processor = AutoImageProcessor.from_pretrained(model_id)
+        model = AutoModelForDepthEstimation.from_pretrained(model_id).to(device)
+        model.eval()
+        _DEPTH_MODEL_CACHE[cache_key] = (processor, model)
+        return processor, model
+    except Exception as e:
+        print(f"[GAP GenUpscale] Warning: Failed to load Depth Anything model '{model_id}': {e}")
+        return None, None
 
 
 def _scharr_gradients(img_mono):
-    """img_mono: (B, 1, H, W) -> gx, gy (Scharr operator has higher rotational symmetry than standard Sobel)."""
+    """img_mono: (B, 1, H, W) -> gx, gy (Scharr operator with high rotational symmetry)."""
     scharr_x = torch.tensor([[-3., 0., 3.],
                              [-10., 0., 10.],
                              [-3., 0., 3.]], device=img_mono.device).view(1, 1, 3, 3) / 32.0
@@ -44,17 +76,36 @@ def _gaussian_blur(img_mono, kernel_size=5, sigma=1.0):
 
 
 class GAPDepthNormalGenerator:
+    """True AI Monocular Depth & Tangent-Space Surface Normal Map Generator using Depth Anything v2."""
+
+    DEPTH_MODELS = [
+        "Depth Anything v2 (Small - Fast & Sharp)",
+        "Depth Anything v2 (Base - High Quality)",
+        "Depth Anything v2 (Large - Ultra Detail)",
+        "Depth Anything v1 (Small)",
+        "Heuristic (Fast Luminance Gradient)",
+    ]
+
+    MODEL_ID_MAP = {
+        "Depth Anything v2 (Small - Fast & Sharp)": "depth-anything/Depth-Anything-V2-Small-hf",
+        "Depth Anything v2 (Base - High Quality)": "depth-anything/Depth-Anything-V2-Base-hf",
+        "Depth Anything v2 (Large - Ultra Detail)": "depth-anything/Depth-Anything-V2-Large-hf",
+        "Depth Anything v1 (Small)": "LiheYoung/depth-anything-small-hf",
+    }
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE", {"tooltip": "Input image to generate depth, normal, and curvature maps from."}),
+                "image": ("IMAGE", {"tooltip": "Input image to generate 3D depth, normal, and curvature maps from."}),
+                "depth_model": (cls.DEPTH_MODELS, {"default": "Depth Anything v2 (Small - Fast & Sharp)",
+                                                   "tooltip": "Select SOTA AI monocular depth estimation model."}),
                 "normal_strength": ("FLOAT", {"default": 2.5, "min": 0.1, "max": 10.0, "step": 0.1,
                                               "tooltip": "Strength/scale of the surface normal detail."}),
-                "depth_smoothness": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 5.0, "step": 0.2,
-                                               "tooltip": "Smoothness of the depth estimation map."}),
-                "invert_depth": ("BOOLEAN", {"default": False}),
-                "invert_y_normal": ("BOOLEAN", {"default": False, "tooltip": "Invert Green channel (DirectX vs OpenGL normal convention)."}),
+                "depth_smoothness": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 5.0, "step": 0.1,
+                                               "tooltip": "Gaussian smoothing filter applied to depth before normal computation."}),
+                "invert_depth": ("BOOLEAN", {"default": False, "tooltip": "Invert depth map (Near=Black, Far=White vs Near=White, Far=Black)."}),
+                "invert_y_normal": ("BOOLEAN", {"default": False, "tooltip": "Invert Green channel (DirectX vs OpenGL normal map convention)."}),
             }
         }
 
@@ -62,32 +113,71 @@ class GAPDepthNormalGenerator:
     RETURN_NAMES = ("depth", "normal", "curvature", "info")
     FUNCTION = "generate"
     CATEGORY = "Geekatplay/GenUpscale"
-    DESCRIPTION = ("Extracts Depth Maps, Tangent-Space Surface Normal Maps, and Surface Curvature Maps "
-                   "directly from images on GPU. by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com")
+    DESCRIPTION = ("Extracts true AI monocular 3D Depth Maps (Depth Anything v2), Tangent-Space Surface Normal Maps, "
+                   "and Surface Curvature Maps directly on GPU. by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com")
 
-    def generate(self, image, normal_strength=2.5, depth_smoothness=1.0, invert_depth=False, invert_y_normal=False):
-        x = image.movedim(-1, 1).to(torch.float32) # (B, 3, H, W)
+    def generate(self, image, depth_model="Depth Anything v2 (Small - Fast & Sharp)",
+                 normal_strength=2.5, depth_smoothness=0.0, invert_depth=False, invert_y_normal=False):
 
-        # 1. Convert to grayscale luminance
-        gray = 0.299 * x[:, 0:1, :, :] + 0.587 * x[:, 1:2, :, :] + 0.114 * x[:, 2:3, :, :]
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        b, h, w, c = image.shape
+        info_str = f"Depth & Normal Generator [{depth_model}]"
 
-        # 2. Smooth depth estimation
+        depth_tensor = None
+
+        # 1. Run AI Depth Estimation (Depth Anything v2 / v1)
+        if depth_model in self.MODEL_ID_MAP:
+            model_id = self.MODEL_ID_MAP[depth_model]
+            processor, model = _get_depth_anything_model(model_id, device)
+
+            if processor is not None and model is not None:
+                depth_list = []
+                for i in range(b):
+                    img_np = (image[i].cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+                    pil_img = Image.fromarray(img_np)
+
+                    inputs = processor(images=pil_img, return_tensors="pt").to(device)
+                    with torch.no_grad():
+                        if device.type == "cuda":
+                            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                                raw_depth = model(**inputs).predicted_depth
+                        else:
+                            raw_depth = model(**inputs).predicted_depth
+
+                    # Resize predicted depth back to original image resolution (1, 1, H, W)
+                    depth_rescaled = F.interpolate(
+                        raw_depth.unsqueeze(1).to(torch.float32),
+                        size=(h, w),
+                        mode="bilinear",
+                        align_corners=False
+                    )
+                    depth_list.append(depth_rescaled)
+
+                depth_tensor = torch.cat(depth_list, dim=0) # (B, 1, H, W)
+                info_str += f" [AI Depth Anything v2, {w}x{h}]"
+
+        # 2. Heuristic fallback if AI model unavailable or selected
+        if depth_tensor is None:
+            x = image.movedim(-1, 1).to(device, dtype=torch.float32)
+            # Grayscale luminance
+            gray = 0.299 * x[:, 0:1, :, :] + 0.587 * x[:, 1:2, :, :] + 0.114 * x[:, 2:3, :, :]
+            depth_tensor = gray
+            info_str += " [Heuristic Luminance Fallback]"
+
+        # Apply optional smoothing
         if depth_smoothness > 0:
             k_size = int(depth_smoothness * 4) | 1
-            gray_smooth = _gaussian_blur(gray, kernel_size=max(3, k_size), sigma=max(0.5, depth_smoothness))
-        else:
-            gray_smooth = gray
+            depth_tensor = _gaussian_blur(depth_tensor, kernel_size=max(3, k_size), sigma=max(0.5, depth_smoothness))
 
-        depth = gray_smooth
+        # Normalize depth per image in batch to range 0.0 .. 1.0
+        d_min = depth_tensor.view(b, -1).min(dim=1)[0].view(b, 1, 1, 1)
+        d_max = depth_tensor.view(b, -1).max(dim=1)[0].view(b, 1, 1, 1)
+        depth_norm = (depth_tensor - d_min) / (d_max - d_min + 1e-6)
+
         if invert_depth:
-            depth = 1.0 - depth
+            depth_norm = 1.0 - depth_norm
 
-        # Normalize depth to 0..1
-        d_min = depth.view(depth.shape[0], -1).min(dim=1)[0].view(-1, 1, 1, 1)
-        d_max = depth.view(depth.shape[0], -1).max(dim=1)[0].view(-1, 1, 1, 1)
-        depth_norm = (depth - d_min) / (d_max - d_min + 1e-6)
-
-        # 3. Compute surface normals via Scharr spatial gradients
+        # 3. Compute 3D Tangent-Space Surface Normal Map from AI Depth
         gx, gy = _scharr_gradients(depth_norm)
         gx = gx * normal_strength
         gy = gy * normal_strength
@@ -95,25 +185,24 @@ class GAPDepthNormalGenerator:
         if invert_y_normal:
             gy = -gy
 
-        # Tangent space normal vector: N = (-gx, -gy, 1.0)
+        # 3D Normal Vector: N = (-gx, -gy, 1.0) normalized
         gz = torch.ones_like(gx)
-        normals = torch.cat([-gx, -gy, gz], dim=1) # (B, 3, H, W)
+        normals_raw = torch.cat([-gx, -gy, gz], dim=1) # (B, 3, H, W)
+        norm_factor = torch.sqrt(torch.sum(normals_raw ** 2, dim=1, keepdim=True) + 1e-6)
+        normals_unit = normals_raw / norm_factor # (B, 3, H, W) in [-1, 1]
 
-        # Vector normalization ||N|| = 1
-        norm_len = torch.sqrt(torch.sum(normals ** 2, dim=1, keepdim=True)).clamp_min(1e-6)
-        normals_unit = normals / norm_len
+        # Map [-1, 1] to RGB [0, 1]
+        normals_rgb = 0.5 + 0.5 * normals_unit
 
-        # Map vector range [-1..1] to RGB [0..1]
-        normal_rgb = (normals_unit * 0.5 + 0.5).clamp(0, 1)
+        # 4. Compute Surface Curvature Map (Laplacian of depth)
+        curvature_map = _laplacian_curvature(depth_norm)
+        curv_min = curvature_map.view(b, -1).min(dim=1)[0].view(b, 1, 1, 1)
+        curv_max = curvature_map.view(b, -1).max(dim=1)[0].view(b, 1, 1, 1)
+        curvature_norm = (curvature_map - curv_min) / (curv_max - curv_min + 1e-6)
 
-        # 4. Compute Surface Curvature map (Laplacian)
-        curv = _laplacian_curvature(depth_norm) * 2.0 + 0.5
-        curv_rgb = curv.clamp(0, 1).repeat(1, 3, 1, 1)
-
-        # Convert back to (B, H, W, 3) format for ComfyUI
+        # Convert tensors to ComfyUI (B, H, W, C) output format
         out_depth = depth_norm.repeat(1, 3, 1, 1).movedim(1, -1).cpu()
-        out_normal = normal_rgb.movedim(1, -1).cpu()
-        out_curvature = curv_rgb.movedim(1, -1).cpu()
+        out_normal = normals_rgb.movedim(1, -1).cpu()
+        out_curvature = curvature_norm.repeat(1, 3, 1, 1).movedim(1, -1).cpu()
 
-        info = f"Depth, Surface Normal & Curvature Maps generated (strength={normal_strength:.1f})"
-        return (out_depth, out_normal, out_curvature, info)
+        return (out_depth, out_normal, out_curvature, info_str)
