@@ -67,7 +67,16 @@ def main():
               "ComfyUI/custom_nodes/ and run again.")
         sys.exit(1)
 
-    print("\n-- Models --")
+    # Check DNG / EXR packages (rawpy, tifffile)
+    print("\n-- Dependencies --")
+    for pkg in ["rawpy", "tifffile"]:
+        try:
+            __import__(pkg)
+            print(f"  [ok] {pkg}")
+        except ImportError:
+            print(f"  [..] installing {pkg} via pip...")
+            import subprocess
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
     for sub, fname, url, size, used_by in MODEL_DOWNLOADS:
         folder = os.path.join(MODELS, sub)
         os.makedirs(folder, exist_ok=True)

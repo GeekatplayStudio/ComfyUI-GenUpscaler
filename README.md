@@ -54,6 +54,7 @@ input image
 - **Before/After Compare Slider & 360 Interactive Compare Viewer** — canvas-rendered image comparers.
   **360 Compare Viewer** allows interactive click-and-drag camera panning/tilting (yaw & pitch) and FOV zoom inside
   the 360° equirectangular panorama while dragging a real-time side-by-side split comparison line.
+- **Load EXR / DNG / HDR Image & Save EXR / DNG / HDR Image** — professional high-dynamic-range and RAW image import & export. Supports OpenEXR (`.exr` 32-bit float), Adobe Digital Negative RAW (`.dng` camera RAW), Radiance (`.hdr`), and 16-bit TIFF formats. Outputs standard preview images and unclamped `IMAGE_HDR` float tensors.
 - **Color Match GPU** — pure PyTorch GPU color transfer (wavelet, local per-region statistics, mkl, histogram).
 
 ## Install

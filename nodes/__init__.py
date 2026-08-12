@@ -13,6 +13,7 @@ from .hdr_tonemap import GAPHDRTonemap
 from .depth_normal import GAPDepthNormalGenerator
 from .compare_360 import GAP360CompareViewer
 from .detail_daemon import GAPDetailDaemon
+from .io_hdr_raw import GAPLoadHDRAny, GAPSaveHDRAny
 
 __all__ = [
     "GAPDetailControl",
@@ -27,4 +28,6 @@ __all__ = [
     "GAPDepthNormalGenerator",
     "GAP360CompareViewer",
     "GAPDetailDaemon",
+    "GAPLoadHDRAny",
+    "GAPSaveHDRAny",
 ]
