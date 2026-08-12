@@ -24,19 +24,20 @@
     },
     {
       "id": 3,
-      "type": "LoadImage",
+      "type": "GAPLoadHDRAny",
       "pos": [ -1450, 120 ],
-      "size": [ 340, 400 ],
+      "size": [ 340, 240 ],
       "flags": {},
       "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
-        { "name": "IMAGE", "type": "IMAGE", "links": [ 2, 27, 30 ] },
-        { "name": "MASK", "type": "MASK", "links": [] }
+        { "name": "image", "type": "IMAGE", "links": [ 2, 27, 30 ] },
+        { "name": "image_hdr", "type": "IMAGE", "links": [] },
+        { "name": "info", "type": "STRING", "links": [] }
       ],
-      "properties": { "Node name for S&R": "LoadImage" },
-      "widgets_values": [ "example.png", "image" ]
+      "properties": { "Node name for S&R": "GAPLoadHDRAny" },
+      "widgets_values": [ "example.dng", 0.0, true, "" ]
     },
     {
       "id": 4,
