@@ -42,6 +42,81 @@ try:
 except ImportError:
     folder_paths = None
 
+# Global PIL Image.open patch to enable DNG, EXR, HDR decoding across ALL ComfyUI nodes (including standard LoadImage)
+_original_pil_open = Image.open
+
+
+def _gap_hdr_raw_pil_open(fp, mode="r", formats=None):
+    try:
+        return _original_pil_open(fp, mode=mode, formats=formats)  # type: ignore # pyright: ignore
+    except Exception as err:
+        path_str = str(fp)
+        ext = os.path.splitext(path_str)[1].lower()
+        if ext in (".dng", ".exr", ".hdr", ".raw", ".cr2", ".nef", ".arw", ".tif", ".tiff"):
+            # 1. Try rawpy for Camera RAW / DNG
+            if rawpy is not None and ext in (".dng", ".raw", ".cr2", ".nef", ".arw"):
+                try:
+                    with rawpy.imread(path_str) as raw:
+                        rgb8 = raw.postprocess(output_bps=8, use_camera_wb=True, half_size=False)
+                        return Image.fromarray(rgb8)
+                except Exception:
+                    pass
+
+            # 2. Try tifffile for DNG / TIFF containers
+            if tifffile is not None and ext in (".dng", ".tif", ".tiff"):
+                try:
+                    arr = tifffile.imread(path_str)
+                    if arr.dtype == np.uint16:
+                        arr = (arr / 256).astype(np.uint8)
+                    elif arr.dtype == np.float32:
+                        arr = (np.clip(arr, 0, 1) * 255.0).astype(np.uint8)
+                    if arr.ndim == 2:
+                        arr = np.stack([arr] * 3, axis=-1)
+                    elif arr.shape[2] == 4:
+                        arr = arr[:, :, :3]
+                    return Image.fromarray(arr)
+                except Exception:
+                    pass
+
+            # 3. Try imageio for EXR / HDR / DNG
+            if iio is not None and ext in (".exr", ".hdr", ".dng", ".tif", ".tiff"):
+                try:
+                    arr = iio.imread(path_str)
+                    if arr.dtype == np.uint16:
+                        arr = (arr / 256).astype(np.uint8)
+                    elif arr.dtype == np.float32:
+                        arr = (np.clip(arr, 0, 1) * 255.0).astype(np.uint8)
+                    if arr.ndim == 2:
+                        arr = np.stack([arr] * 3, axis=-1)
+                    elif arr.shape[2] == 4:
+                        arr = arr[:, :, :3]
+                    return Image.fromarray(arr)
+                except Exception:
+                    pass
+
+            # 4. Try OpenCV fallback for EXR / HDR
+            if cv2 is not None and ext in (".exr", ".hdr"):
+                try:
+                    bgr = cv2.imread(path_str, cv2.IMREAD_UNCHANGED)
+                    if bgr is not None:
+                        if bgr.dtype == np.float32:
+                            bgr = (np.clip(bgr, 0, 1) * 255.0).astype(np.uint8)
+                        elif bgr.dtype == np.uint16:
+                            bgr = (bgr / 256).astype(np.uint8)
+                        if bgr.ndim == 2:
+                            bgr = cv2.cvtColor(bgr, cv2.COLOR_GRAY2RGB)
+                        elif bgr.shape[2] == 4:
+                            bgr = cv2.cvtColor(bgr[:, :, :3], cv2.COLOR_BGR2RGB)
+                        else:
+                            bgr = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                        return Image.fromarray(bgr)
+                except Exception:
+                    pass
+        raise err
+
+
+Image.open = _gap_hdr_raw_pil_open
+
 
 def patch_comfy_server_max_payload():
     """Raises ComfyUI web server aiohttp max payload limit to 2GB to permanently solve HTTP 413 Content Too Large errors on DNG/EXR uploads."""
