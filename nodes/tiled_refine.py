@@ -19,13 +19,14 @@ import math
 import torch
 
 try:
-    import comfy.samplers
-    import comfy.utils
-    from nodes import common_ksampler, VAEEncode, VAEDecode
+    import comfy.samplers  # type: ignore # pyright: ignore
+    import comfy.utils  # type: ignore # pyright: ignore
+    from nodes import common_ksampler, VAEEncode, VAEDecode  # type: ignore # pyright: ignore
     SAMPLERS = comfy.samplers.KSampler.SAMPLERS
     SCHEDULERS = comfy.samplers.KSampler.SCHEDULERS
 except ImportError:  # allows import outside ComfyUI (tests)
     SAMPLERS, SCHEDULERS = ["euler"], ["normal"]
+    common_ksampler = VAEEncode = VAEDecode = comfy = None  # type: ignore
 
 
 def _tile_positions(size, tile, overlap):

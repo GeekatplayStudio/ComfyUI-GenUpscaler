@@ -10,39 +10,50 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NODES_DIR = os.path.join(HERE, "nodes")
+
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
+if NODES_DIR not in sys.path:
+    sys.path.insert(0, NODES_DIR)
 
 try:
-    from .nodes import (
-        GAPDetailControl,
-        GAPTilePlanner,
-        GAPUpscalePrompt,
-        GAPColorMatch,
-        GAPTiledRefine,
-        GAPCompareSlider,
-        GAP360TiledRefine,
-        GAP360TilePlanner,
-        GAPHDRTonemap,
-        GAPDepthNormalGenerator,
-        GAP360CompareViewer,
-        GAPDetailDaemon,
-    )
+    from .nodes.detail_control import GAPDetailControl  # type: ignore # pyright: ignore
+    from .nodes.tile_planner import GAPTilePlanner  # type: ignore # pyright: ignore
+    from .nodes.upscale_prompt import GAPUpscalePrompt  # type: ignore # pyright: ignore
+    from .nodes.color_match import GAPColorMatch  # type: ignore # pyright: ignore
+    from .nodes.tiled_refine import GAPTiledRefine  # type: ignore # pyright: ignore
+    from .nodes.compare_slider import GAPCompareSlider  # type: ignore # pyright: ignore
+    from .nodes.gap360_refine import GAP360TiledRefine, GAP360TilePlanner  # type: ignore # pyright: ignore
+    from .nodes.hdr_tonemap import GAPHDRTonemap  # type: ignore # pyright: ignore
+    from .nodes.depth_normal import GAPDepthNormalGenerator  # type: ignore # pyright: ignore
+    from .nodes.compare_360 import GAP360CompareViewer  # type: ignore # pyright: ignore
+    from .nodes.detail_daemon import GAPDetailDaemon  # type: ignore # pyright: ignore
 except ImportError:
-    from nodes import (
-        GAPDetailControl,
-        GAPTilePlanner,
-        GAPUpscalePrompt,
-        GAPColorMatch,
-        GAPTiledRefine,
-        GAPCompareSlider,
-        GAP360TiledRefine,
-        GAP360TilePlanner,
-        GAPHDRTonemap,
-        GAPDepthNormalGenerator,
-        GAP360CompareViewer,
-        GAPDetailDaemon,
-    )
+    try:
+        from nodes.detail_control import GAPDetailControl  # type: ignore # pyright: ignore
+        from nodes.tile_planner import GAPTilePlanner  # type: ignore # pyright: ignore
+        from nodes.upscale_prompt import GAPUpscalePrompt  # type: ignore # pyright: ignore
+        from nodes.color_match import GAPColorMatch  # type: ignore # pyright: ignore
+        from nodes.tiled_refine import GAPTiledRefine  # type: ignore # pyright: ignore
+        from nodes.compare_slider import GAPCompareSlider  # type: ignore # pyright: ignore
+        from nodes.gap360_refine import GAP360TiledRefine, GAP360TilePlanner  # type: ignore # pyright: ignore
+        from nodes.hdr_tonemap import GAPHDRTonemap  # type: ignore # pyright: ignore
+        from nodes.depth_normal import GAPDepthNormalGenerator  # type: ignore # pyright: ignore
+        from nodes.compare_360 import GAP360CompareViewer  # type: ignore # pyright: ignore
+        from nodes.detail_daemon import GAPDetailDaemon  # type: ignore # pyright: ignore
+    except ImportError:
+        from detail_control import GAPDetailControl  # type: ignore # pyright: ignore
+        from tile_planner import GAPTilePlanner  # type: ignore # pyright: ignore
+        from upscale_prompt import GAPUpscalePrompt  # type: ignore # pyright: ignore
+        from color_match import GAPColorMatch  # type: ignore # pyright: ignore
+        from tiled_refine import GAPTiledRefine  # type: ignore # pyright: ignore
+        from compare_slider import GAPCompareSlider  # type: ignore # pyright: ignore
+        from gap360_refine import GAP360TiledRefine, GAP360TilePlanner  # type: ignore # pyright: ignore
+        from hdr_tonemap import GAPHDRTonemap  # type: ignore # pyright: ignore
+        from depth_normal import GAPDepthNormalGenerator  # type: ignore # pyright: ignore
+        from compare_360 import GAP360CompareViewer  # type: ignore # pyright: ignore
+        from detail_daemon import GAPDetailDaemon  # type: ignore # pyright: ignore
 
 NODE_CLASS_MAPPINGS = {
     "GAPDetailControl": GAPDetailControl,

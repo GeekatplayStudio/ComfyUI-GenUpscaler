@@ -1,0 +1,17 @@
+{
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        ".",
+        "./nodes",
+        "../../"
+      ]
+    }
+  ],
+  "reportMissingImports": false,
+  "reportAttributeAccessIssue": false,
+  "reportOptionalMemberAccess": false,
+  "reportPossiblyUnboundVariable": false,
+  "reportOptionalCall": false
+}

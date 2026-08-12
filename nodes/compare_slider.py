@@ -34,6 +34,8 @@ class GAPCompareSlider:
                    "by Geekatplay Studio / Vladimir Chopine")
 
     def _save_temp(self, image, tag):
+        if folder_paths is None:
+            return []
         out_dir = folder_paths.get_temp_directory()
         prefix = f"gap_compare_{tag}_" + "".join(
             random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(5))
