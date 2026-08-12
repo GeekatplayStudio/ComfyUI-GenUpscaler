@@ -79,13 +79,20 @@ class GAPLoadHDRAny:
                    "by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com")
 
     def load_image(self, image_file, exposure_ev=0.0, tonemap_preview=True, custom_file_path=""):
-        path = custom_file_path.strip()
+        # Strip surrounding quotes and whitespace from copy-pasted absolute paths
+        path = custom_file_path.strip().strip('"').strip("'").strip()
+        
         if not path or not os.path.isfile(path):
             input_dir = folder_paths.get_input_directory() if folder_paths else "."
             path = os.path.join(input_dir, image_file)
 
         if not os.path.isfile(path):
-            raise FileNotFoundError(f"HDR/DNG file not found: {path}")
+            raise FileNotFoundError(
+                f"HDR/DNG file not found: '{path}'.\n"
+                f"To load large 360 DNG/EXR files without HTTP 413 upload errors:\n"
+                f"1. Copy your DNG/EXR file into your ComfyUI/input/ folder, OR\n"
+                f"2. Enter the full file path (e.g. C:\\Photos\\panorama360.dng) in 'custom_file_path'."
+            )
 
         ext = os.path.splitext(path)[1].lower()
         img_np = None
