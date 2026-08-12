@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-geekatplay-genupscale"
+description = "Geekatplay GenUpscale - content-aware generative AI upscaler suite (extreme upscale, tiled generative detail restoration, creative-vs-original control) by Geekatplay Studio / Vladimir Chopine"
+version = "1.0.0"
+license = { text = "MIT" }
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/GeekatplayStudio/ComfyUI-GenUpscaler"
+
+[tool.comfy]
+PublisherId = "geekatplay"
+DisplayName = "Geekatplay GenUpscale"
+Icon = ""
