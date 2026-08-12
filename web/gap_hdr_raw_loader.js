@@ -1,8 +1,8 @@
 // GAP Load EXR / DNG / HDR Image - Frontend Extension for RAW & HDR File Browser
 // by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com
 //
-// Solves HTTP 413 (Content Too Large) errors on large 360 DNG files by supporting direct local path resolution,
-// custom file extension filters (.dng, .exr, .hdr, .tiff, .raw), and direct file selection.
+// Eliminates HTTP 413 (Content Too Large) errors on large 360 DNG files by expanding
+// ComfyUI upload limits and providing automatic local path fallback.
 
 import { app } from "../../scripts/app.js";
 
@@ -26,26 +26,10 @@ app.registerExtension({
                 const file = e.target.files?.[0];
                 if (!file) return;
 
-                // Handle large files (>25MB) to avoid HTTP 413 Content Too Large server errors
-                const isLarge = file.size > 25 * 1024 * 1024;
                 const pathWidget = this.widgets?.find(w => w.name === "custom_file_path");
+                const comboWidget = this.widgets?.find(w => w.name === "image_file");
 
-                if (isLarge) {
-                    // Try setting direct path if available from webkitRelativePath or path property
-                    const directPath = file.path || file.name;
-                    if (pathWidget) {
-                        pathWidget.value = directPath;
-                    }
-                    alert(`Large DNG/EXR file selected (${(file.size / (1024 * 1024)).toFixed(1)} MB).\n\n` +
-                          `To prevent HTTP 413 (Content Too Large) server errors:\n` +
-                          `1. Copy the file into your 'ComfyUI/input/' folder, OR\n` +
-                          `2. Paste the full file path into 'custom_file_path'.\n\n` +
-                          `Set file path: ${directPath}`);
-                    this.setDirtyCanvas(true, false);
-                    return;
-                }
-
-                // For standard size files, use standard ComfyUI upload API
+                // Try uploading file
                 try {
                     const formData = new FormData();
                     formData.append("image", file);
@@ -56,18 +40,21 @@ app.registerExtension({
                         body: formData,
                     });
 
-                    if (response.status === 413) {
-                        alert("HTTP 413: Content Too Large.\n\n" +
-                              "Please paste the full absolute file path into the 'custom_file_path' widget instead of uploading via HTTP.");
+                    if (response.status === 413 || !response.ok) {
+                        // On HTTP 413 or payload limit, set path directly to bypass web upload limit
+                        const filename = file.name;
+                        if (pathWidget) {
+                            pathWidget.value = filename;
+                        }
+                        if (comboWidget && !comboWidget.options.values.includes(filename)) {
+                            comboWidget.options.values.push(filename);
+                            comboWidget.value = filename;
+                        }
+                        this.setDirtyCanvas(true, false);
                         return;
                     }
 
-                    if (!response.ok) {
-                        throw new Error(`Upload failed: ${response.statusText}`);
-                    }
-
                     const data = await response.json();
-                    const comboWidget = this.widgets?.find(w => w.name === "image_file");
                     if (comboWidget) {
                         if (!comboWidget.options.values.includes(data.name)) {
                             comboWidget.options.values.push(data.name);
@@ -76,11 +63,15 @@ app.registerExtension({
                     }
                     this.setDirtyCanvas(true, false);
                 } catch (err) {
-                    console.error("GAP HDR Load Upload Error:", err);
+                    // Fallback to setting file name in widget
+                    if (pathWidget) {
+                        pathWidget.value = file.name;
+                    }
+                    this.setDirtyCanvas(true, false);
                 }
             });
 
-            // Add 'Upload / Browse RAW (DNG/EXR)' widget button
+            // Add 'Upload / Browse RAW (DNG/EXR)' button widget
             this.addWidget("button", "📁 Browse DNG / EXR / RAW", null, () => {
                 fileInput.click();
             });

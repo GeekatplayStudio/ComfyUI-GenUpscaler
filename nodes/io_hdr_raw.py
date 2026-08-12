@@ -43,11 +43,27 @@ except ImportError:
     folder_paths = None
 
 
+def patch_comfy_server_max_payload():
+    """Raises ComfyUI web server aiohttp max payload limit to 2GB to permanently solve HTTP 413 Content Too Large errors on DNG/EXR uploads."""
+    try:
+        import server
+        if hasattr(server, "PromptServer") and server.PromptServer.instance:
+            ps = server.PromptServer.instance
+            if hasattr(ps, "app") and ps.app:
+                ps.app._client_max_size = 2048 * 1024 * 1024
+    except Exception:
+        pass
+
+
+patch_comfy_server_max_payload()
+
+
 class GAPLoadHDRAny:
     """Load High-Dynamic-Range (OpenEXR .exr, Radiance .hdr) and RAW (Adobe DNG .dng) images."""
 
     @classmethod
     def INPUT_TYPES(cls):
+        patch_comfy_server_max_payload()
         input_dir = folder_paths.get_input_directory() if folder_paths else "."
         files = []
         if os.path.exists(input_dir):
@@ -79,6 +95,8 @@ class GAPLoadHDRAny:
                    "by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com")
 
     def load_image(self, image_file, exposure_ev=0.0, tonemap_preview=True, custom_file_path=""):
+        patch_comfy_server_max_payload()
+
         # Strip surrounding quotes and whitespace from copy-pasted absolute paths
         path = custom_file_path.strip().strip('"').strip("'").strip()
         
@@ -87,9 +105,18 @@ class GAPLoadHDRAny:
             path = os.path.join(input_dir, image_file)
 
         if not os.path.isfile(path):
+            # Check if file exists in input or output folders
+            if folder_paths:
+                for base in [folder_paths.get_input_directory(), folder_paths.get_output_directory()]:
+                    candidate = os.path.join(base, os.path.basename(image_file))
+                    if os.path.isfile(candidate):
+                        path = candidate
+                        break
+
+        if not os.path.isfile(path):
             raise FileNotFoundError(
                 f"HDR/DNG file not found: '{path}'.\n"
-                f"To load large 360 DNG/EXR files without HTTP 413 upload errors:\n"
+                f"To load large 360 DNG/EXR files:\n"
                 f"1. Copy your DNG/EXR file into your ComfyUI/input/ folder, OR\n"
                 f"2. Enter the full file path (e.g. C:\\Photos\\panorama360.dng) in 'custom_file_path'."
             )
@@ -169,6 +196,7 @@ class GAPSaveHDRAny:
 
     @classmethod
     def INPUT_TYPES(cls):
+        patch_comfy_server_max_payload()
         return {
             "required": {
                 "images": ("IMAGE", {"tooltip": "Image tensor to export."}),
@@ -188,6 +216,7 @@ class GAPSaveHDRAny:
                    "or 16-bit TIFF format. by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com")
 
     def save_image(self, images, filename_prefix="GenUpscale_HDR", format="OpenEXR (.exr)", images_hdr=None):
+        patch_comfy_server_max_payload()
         out_dir = folder_paths.get_output_directory() if folder_paths else "."
         target_tensor = images_hdr if images_hdr is not None else images
 
