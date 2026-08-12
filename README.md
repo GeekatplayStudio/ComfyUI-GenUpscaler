@@ -26,7 +26,10 @@ input image
 | Workflow | Engine | VRAM | Use for |
 |---|---|---|---|
 | `GAP-GenUpscale-Quality-FLUX.json` | FLUX.1-dev fp8 + jasperai Upscaler ControlNet | 16–24 GB | Best realism and faithfulness |
-| `GAP-GenUpscale-Fast-SDXL.json` | SDXL + xinsir Tile ControlNet | 8–12 GB | Fast batches; swap in a photoreal checkpoint (Juggernaut XL, RealVisXL) for best results |
+| `GAP-GenUpscale-Fast-SDXL.json` | SDXL + xinsir Tile ControlNet | 8–12 GB | Fast batches; swap in a photoreal checkpoint for best results |
+| `GAP-GenUpscale-360-HDR-FLUX.json` | FLUX.1-dev fp8 + 360 Circular Refine | 16–24 GB | **360° equirectangular panoramas** with zero seam artifacts, HDR tonemapping, Depth & Normal maps, and interactive 360 compare viewer |
+| `GAP-GenUpscale-Quality-FLUX-DepthNormal.json` | FLUX.1-dev fp8 + Depth/Normal Generator | 16–24 GB | High-quality upscale output with additional 3D depth and surface normal map channels |
+| `GAP-GenUpscale-Fast-SDXL-DepthNormal.json` | SDXL + Depth/Normal Generator | 8–12 GB | Fast SDXL upscale output with additional 3D depth and surface normal map channels |
 
 ## Custom nodes
 
@@ -37,31 +40,22 @@ input image
   - *archival* ≈ denoise 0.15, CN strong: pixel-faithful cleanup
   - *balanced* ≈ denoise 0.33: regenerates lost micro-texture on fabric/skin
   - *creative* ≈ denoise 0.5+, CN relaxed: bold reinterpretation of detail
-- **Auto Tile Planner** — computes an even tile grid (width/height/padding/
-  mask-blur) from the final image size. No more manual tile math.
+- **Auto Tile Planner & 360 Auto Tile Planner** — computes an even tile grid (width/height/padding/
+  mask-blur) from the final image size. 360 version includes circular boundary padding.
 - **Upscale Prompt Helper** — builds tile-safe prompts that describe *texture*,
   not composition (scene prompts make every tile hallucinate the subject).
-  Content presets: photo, portrait/skin, landscape, architecture, fabric,
-  artwork.
-- **Tiled Generative Refine** — our own modern replacement for Ultimate SD
-  Upscale: every tile is sampled from the *original* upscaled image and merged
-  with smooth raised-cosine feathered blending, so there are no seams and no
-  separate seam-fix pass, and no progressive tile-to-tile drift. Tiles can be
-  sampled in true GPU batches (`batch_size`) for a large speedup, ControlNet
-  hints (including chained ControlNets) are cropped per tile automatically,
-  and the whole pipeline is pure tensor code — no PIL round trips.
-- **Before/After Compare Slider** — our own image comparer: both images in
-  one frame with a draggable divider (drag anywhere on the preview). Drawn
-  directly on the node canvas, so it works at any zoom and has no widget
-  side effects.
-- **Color Match GPU** — our own replacement for the deprecated KJNodes
-  ColorMatch. Pure PyTorch on GPU, zero pip dependencies. Classic methods
-  (mkl, histogram, reinhard-lab, hm-mkl-hm compound) plus two new ones:
-  **wavelet** (transfers only low-frequency color, preserving every bit of
-  generated detail — the best default after upscaling) and **local**
-  (per-region statistics smoothly interpolated across the image, fixes
-  tile-local color drift a global transform can't). Optional
-  preserve-luminance mode matches chroma only.
+- **Tiled Generative Refine & 360 Tiled Generative Refine** — modern replacement for Ultimate SD
+  Upscale: every tile is sampled from the *original* upscaled image and merged with smooth raised-cosine
+  feathered blending. **360 version** incorporates horizontal circular padding ($x=0 \leftrightarrow x=W$)
+  to guarantee zero seam artifacts at the 360° boundary line.
+- **HDR Tonemap & Contrast** — GPU-accelerated dynamic range enhancement, exposure correction,
+  highlight compression, shadow lift, and tone mapping curves (Reinhard, ACES Filmic, Uncharted 2, Exponential, HDR Pop).
+- **Depth & Surface Normal Generator** — extracts high-precision 3D depth maps and tangent-space surface
+  normal maps ($R=N_x, G=N_y, B=N_z$) directly on GPU via Sobel/Scharr operators.
+- **Before/After Compare Slider & 360 Interactive Compare Viewer** — canvas-rendered image comparers.
+  **360 Compare Viewer** allows interactive click-and-drag camera panning/tilting (yaw & pitch) and FOV zoom inside
+  the 360° equirectangular panorama while dragging a real-time side-by-side split comparison line.
+- **Color Match GPU** — pure PyTorch GPU color transfer (wavelet, local per-region statistics, mkl, histogram).
 
 ## Install
 
