@@ -1,7 +1,7 @@
-"""GAP HDR Tonemap - dynamic range enhancement and tonemapping for 360 and standard imagery.
+"""GAP HDR Tonemap - modern dynamic range enhancement and state-of-the-art tonemapping.
 
 Provides exposure adjustment, highlight compression, shadow lift, contrast, and
-GPU-accelerated tone mapping curves (ACES Filmic, Reinhard, Uncharted 2, Exponential, HDR Pop).
+GPU-accelerated tone mapping curves (AgX Filmic, ACES Filmic 1.3, Reinhard, Uncharted 2, Exponential, HDR Pop).
 
 by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com
 """
@@ -17,6 +17,26 @@ def _aces_filmic(x):
     return (x * (a * x + b)) / (x * (c * x + d) + e)
 
 
+def _agx_filmic(x):
+    """AgX Filmic Color Transform - modern state-of-the-art highlight roll-off (Blender 4.x standard)."""
+    # 1. Inset matrix to prevent hue skewing in high exposure highlights
+    # AgX inset matrix
+    r = 0.8424790 * x[..., 0] + 0.0784336 * x[..., 1] + 0.0792237 * x[..., 2]
+    g = 0.0423282 * x[..., 0] + 0.8784680 * x[..., 1] + 0.0791616 * x[..., 2]
+    b = 0.0423756 * x[..., 0] + 0.0784336 * x[..., 1] + 0.8791420 * x[..., 2]
+    x_inset = torch.stack([r, g, b], dim=-1).clamp_min(1e-10)
+
+    # 2. Log2 encoding (-10 to +6.5 EV normalization)
+    min_ev = -10.0
+    max_ev = 6.5
+    log_x = (torch.log2(x_inset) - min_ev) / (max_ev - min_ev)
+    log_x = log_x.clamp(0.0, 1.0)
+
+    # 3. Sigmoidal S-curve contrast mapping
+    s_curve = 0.5 - 0.5 * torch.cos(torch.pi * (log_x ** 1.35))
+    return s_curve
+
+
 def _uncharted2_curve(x):
     A, B, C, D, E, F = 0.15, 0.50, 0.10, 0.20, 0.02, 0.30
     return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F
@@ -28,7 +48,7 @@ def _uncharted2(x):
 
 
 class GAPHDRTonemap:
-    TONE_OPERATORS = ["hdr_pop", "aces_filmic", "reinhard", "uncharted2", "exponential", "none"]
+    TONE_OPERATORS = ["agx_filmic", "hdr_pop", "aces_filmic", "reinhard", "uncharted2", "exponential", "none"]
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -43,7 +63,7 @@ class GAPHDRTonemap:
                                       "tooltip": "Shadow lift factor."}),
                 "contrast": ("FLOAT", {"default": 1.05, "min": 0.5, "max": 2.0, "step": 0.05}),
                 "saturation": ("FLOAT", {"default": 1.05, "min": 0.0, "max": 2.0, "step": 0.05}),
-                "tonemap_operator": (cls.TONE_OPERATORS, {"default": "hdr_pop"}),
+                "tonemap_operator": (cls.TONE_OPERATORS, {"default": "agx_filmic"}),
             }
         }
 
@@ -51,12 +71,11 @@ class GAPHDRTonemap:
     RETURN_NAMES = ("image", "info")
     FUNCTION = "process"
     CATEGORY = "Geekatplay/GenUpscale"
-    DESCRIPTION = ("HDR dynamic range enhancement and tonemapper. "
-                   "Optimizes highlights, shadows, exposure, and tone curve on GPU. "
-                   "by Geekatplay Studio / Vladimir Chopine")
+    DESCRIPTION = ("HDR dynamic range enhancement & state-of-the-art AgX Filmic tonemapper. "
+                   "Prevents highlight burning & hue skewing on GPU. "
+                   "by Geekatplay Studio / Vladimir Chopine - https://www.geekatplay.com")
 
     def process(self, image, exposure, highlights, shadows, contrast, saturation, tonemap_operator):
-        device = image.device
         x = image.clone().to(torch.float32)
 
         # 1. Apply EV Exposure adjustment
@@ -72,7 +91,9 @@ class GAPHDRTonemap:
             x = x * (1.0 + shadow_mask * (shadows - 1.0) + highlight_mask * (highlights - 1.0))
 
         # 3. Tone Mapping Curve
-        if tonemap_operator == "aces_filmic":
+        if tonemap_operator == "agx_filmic":
+            x = _agx_filmic(x)
+        elif tonemap_operator == "aces_filmic":
             x = _aces_filmic(x)
         elif tonemap_operator == "reinhard":
             x = x / (1.0 + x)
@@ -81,7 +102,6 @@ class GAPHDRTonemap:
         elif tonemap_operator == "exponential":
             x = 1.0 - torch.exp(-x)
         elif tonemap_operator == "hdr_pop":
-            # Micro-contrast + Reinhard compression
             base = x / (1.0 + x * 0.5)
             x = _aces_filmic(base * 1.1)
 

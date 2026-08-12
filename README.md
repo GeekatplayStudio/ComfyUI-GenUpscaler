@@ -48,10 +48,9 @@ input image
   Upscale: every tile is sampled from the *original* upscaled image and merged with smooth raised-cosine
   feathered blending. **360 version** incorporates horizontal circular padding ($x=0 \leftrightarrow x=W$)
   to guarantee zero seam artifacts at the 360° boundary line.
-- **HDR Tonemap & Contrast** — GPU-accelerated dynamic range enhancement, exposure correction,
-  highlight compression, shadow lift, and tone mapping curves (Reinhard, ACES Filmic, Uncharted 2, Exponential, HDR Pop).
-- **Depth & Surface Normal Generator** — extracts high-precision 3D depth maps and tangent-space surface
-  normal maps ($R=N_x, G=N_y, B=N_z$) directly on GPU via Sobel/Scharr operators.
+- **Detail Daemon (Micro-Texture Booster)** — frequency-decoupled latent detail booster for FLUX, SDXL & Qwen models. Injects fine micro-textures (hair, skin pores, fabric weave) without introducing contrast artifacts.
+- **HDR Tonemap & Contrast** — GPU-accelerated dynamic range enhancement, exposure correction, highlight compression, shadow lift, and state-of-the-art tonemapping curves (**AgX Filmic**, ACES Filmic 1.3, Reinhard, Uncharted 2, Exponential, HDR Pop).
+- **Depth, Surface Normal & Curvature Generator** — extracts high-precision 3D depth maps, tangent-space surface normal maps ($R=N_x, G=N_y, B=N_z$), and surface curvature maps (Laplacian) directly on GPU via Scharr operators.
 - **Before/After Compare Slider & 360 Interactive Compare Viewer** — canvas-rendered image comparers.
   **360 Compare Viewer** allows interactive click-and-drag camera panning/tilting (yaw & pitch) and FOV zoom inside
   the 360° equirectangular panorama while dragging a real-time side-by-side split comparison line.

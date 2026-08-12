@@ -17,6 +17,7 @@ from .nodes.gap360_refine import GAP360TiledRefine, GAP360TilePlanner
 from .nodes.hdr_tonemap import GAPHDRTonemap
 from .nodes.depth_normal import GAPDepthNormalGenerator
 from .nodes.compare_360 import GAP360CompareViewer
+from .nodes.detail_daemon import GAPDetailDaemon
 
 NODE_CLASS_MAPPINGS = {
     "GAPDetailControl": GAPDetailControl,
@@ -30,6 +31,7 @@ NODE_CLASS_MAPPINGS = {
     "GAPHDRTonemap": GAPHDRTonemap,
     "GAPDepthNormalGenerator": GAPDepthNormalGenerator,
     "GAP360CompareViewer": GAP360CompareViewer,
+    "GAPDetailDaemon": GAPDetailDaemon,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -44,6 +46,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GAPHDRTonemap": "HDR Tonemap & Contrast | GAP GenUpscale",
     "GAPDepthNormalGenerator": "Depth & Surface Normal Generator | GAP GenUpscale",
     "GAP360CompareViewer": "360 Interactive Compare Viewer | GAP GenUpscale",
+    "GAPDetailDaemon": "Detail Daemon (Micro-Texture Booster) | GAP GenUpscale",
 }
 
 WEB_DIRECTORY = "./web"
